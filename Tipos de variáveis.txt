@@ -1,0 +1,22 @@
+DB/BYTE (Sem Sinal) 1 byte
+SBYTE               1 byte
+
+DW/WORD [0 ... 65535]   2 bytes
+SWORD   [-32768 ... 32768]  2 bytes
+
+DD/DWORD[0 ... 4 billion]   4 bytes
+SDWORD  [-2 billion .. 2 billion]   4 bytes
+
+DF/FWORD    6 bytes
+DQ/QWORD    8 bytes
+DT/TBYTE    10 bytes
+
++++REAIS+++
+
+REAL4   (Precisão simples)
+REAL8   (Precisão dupla)
+REAL10  
+
++++ARRAYS+++
+
+NOME TIPO NELEMENTOS DUP(Valor inicial)
