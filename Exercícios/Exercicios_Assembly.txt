@@ -38,3 +38,92 @@ main	proc
 main	endp
 cseg    ends
 end     main
+10.
+11.
+.8086
+.model	small
+.stack	2048
+
+DADOS	SEGMENT PARA 'DATA'
+      OldVector byte 10,150,200,250
+	  NewVector word 5 dup(0)
+	  NumElem byte 5
+	  
+DADOS	ENDS
+
+CODIGO	SEGMENT PARA 'CODE'
+	ASSUME CS:CODIGO, DS:DADOS
+	
+INICIO:
+    mov     ax, DADOS
+	mov     ds, ax
+    xor si,si
+	xor di,di
+	mov bl, 3
+    xor ch,ch
+	mov cl, NumElem
+	
+
+ciclo:
+
+	mov     al, OldVector[si]
+	mul     bl
+    mov     NewVector[di],ax
+    inc     si
+	add     di,2
+	cmp     si, 5	
+	jbe     ciclo
+        	
+	   
+fim:	
+    mov     al,0
+    mov     ah,4ch
+    int     21h
+
+
+CODIGO	ENDS
+END	INICIO
+
+12.
+.8086
+.model	small
+.stack	2048
+
+DADOS	SEGMENT PARA 'DATA'
+  Start byte "O_teste_de_tac_e_quarta!", 0
+  num byte 0
+DADOS	ENDS
+
+CODIGO	SEGMENT PARA 'CODE'
+	ASSUME CS:CODIGO, DS:DADOS
+INICIO:
+	mov     ax, DADOS
+	mov     ds, ax
+	xor cl,cl
+	xor si,si
+	
+	
+	
+ciclo:
+	mov al, start[si]
+	cmp al,0
+	je while_fim
+	cmp al, ' '
+	jne if_fim
+	inc cl
+	
+
+
+if_fim:	
+   inc si
+   jmp ciclo
+while_fim:
+   mov num,cl
+   
+ fim:
+     mov al,0
+     mov ah,4ch
+
+
+CODIGO	ENDS
+END	INICIO
