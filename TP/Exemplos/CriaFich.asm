@@ -1,12 +1,12 @@
 ;------------------------------------------------------------------------
 ;	Demo para TRABALHO PRATICO - TECNOLOGIAS e ARQUITECTURAS de COMPUTADORES
-;   
+;
 ;	ANO LECTIVO 2018/2019
 ;--------------------------------------------------------------
 ; Demonstração duma rotina de criação e escrita num ficheiro de texto
 ;
-; Inclui uma rotina de geração de números aleatórios 	
-;	
+; Inclui uma rotina de geração de números aleatórios
+;
 ;
 ;--------------------------------------------------------------
 
@@ -21,9 +21,9 @@
 DADOS SEGMENT
 	fname	db	'pergunta.txt',0
 	fhandle dw	0
-	buffer		db	'1 5 6 7 8 9 1 5 7 8 9 2 3 7 8 15 16 18 19 20 3',13,10
+	buffer	db	'1 5 6 7 8 9 1 5 7 8 9 2 3 7 8 15 16 18 19 20 3',13,10
 			db 	'+ - / * * + - - + * / * + - - + * / + - - + * ',13,10
-			db	'10 12 14 7 9 11 13 5 10 15 7 8 9 10 13 5 10 11',13,10 
+			db	'10 12 14 7 9 11 13 5 10 15 7 8 9 10 13 5 10 11',13,10
 			db 	'/ * + - - + * / + - / * * + - - + * * + - - + ',13,10
 			db	'3 45 23 11 4 7 14 18 31 27 19 9 6 47 19 9 6 51',13,10
 			db	'______________________________________________',13,10
@@ -38,28 +38,28 @@ CODIGO	SEGMENT	para	public	'code'
 Main proc
 		MOV		AX, DADOS
 		MOV		DS, AX
-	
+
 		mov		ah, 3ch				; Abrir o ficheiro para escrita
-		mov		cx, 00H				; Define o tipo de ficheiro 
-		lea		dx, fname			; DX aponta para o nome do ficheiro 
-		int		21h				; Abre efectivamente o ficheiro (AX fica com o Handle do ficheiro)
+		mov		cx, 00H				; Define o tipo de ficheiro
+		lea		dx, fname			; DX aponta para o nome do ficheiro
+		int		21h					; Abre efectivamente o ficheiro (AX fica com o Handle do ficheiro)
 		jnc		escreve				; Se não existir erro escreve no ficheiro
-	
+
 		mov		ah, 09h
 		lea		dx, msgErrorCreate
 		int		21h
-	
+
 		jmp		fim
 
 escreve:
 		mov		bx, ax				; Coloca em BX o Handle
 		mov		ah, 40h				; indica que é para escrever
-    	
+
 		lea		dx, buffer			; DX aponta para a infromação a escrever
 		mov		cx, 240				; CX fica com o numero de bytes a escrever
-		int		21h				; Chama a rotina de escrita
+		int		21h					; Chama a rotina de escrita
 		jnc		close				; Se não existir erro na escrita fecha o ficheiro
-	
+
 		mov		ah, 09h
 		lea		dx, msgErrorWrite
 		int		21h
@@ -67,7 +67,7 @@ close:
 		mov		ah,3eh				; fecha o ficheiro
 		int		21h
 		jnc		fim
-	
+
 		mov		ah, 09h
 		lea		dx, msgErrorClose
 		int		21h
@@ -77,5 +77,3 @@ fim:
 main	endp
 		CODIGO	ENDS
 END	main
-
-
