@@ -5,11 +5,11 @@
 .data
 
 menu 
-    db "Please select a choice:",13,10
-    db "1. Name",13,10
-    db "2. Age",13,10
-    db "3. Major",13,10
-    db "4. Exit",13,10,'$'
+    db "SNAKE 2D:",13,10
+    db "1. Iniciar Jogo",13,10
+    db "2. Ver estatisticas do jogo",13,10
+   
+    db "3. Exit",13,10,'$'
 .code
 start:
 
