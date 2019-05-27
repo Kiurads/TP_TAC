@@ -1,341 +1,626 @@
 .8086
-.MODEL SMalL
-.STACK 2048
+.model small
+.stack 2048
 
-GOTO_XY		MACRO	POSX,POSY
-	MOV	   ah,02H
-	MOV	   bh,0
-	MOV	   DL,POSX
-	MOV    DH,POSY
-	INT	   10H
-ENDM
+goto_xy		macro	posx,posy
+	mov     al, posy
+    mov     bl, 160
+    mul     bl
+    mov     di, ax
 
-DADOS SEGMENT
-    menu1           db  'Welcome to snake!', 13, 10
-                    db  '1 - Start Game', 13, 10
-                    db  '2 - Stats', 13, 10
-                    db  '3 - Exit Game', 13, 10
-    POSy  	        db	10	; a linha pode ir de [1 .. 25]
-    POSx  	        db	40	; POSx pode ir [1..80]
-    POSya       	db	5	; Posição anterior de y
-    POSxa           db	10	; Posição anterior de x
+    mov     al, posx
+    mov     bl, 2
+    mul     bl
+    add     di, ax
+endm
 
-    PASSA_T		    dw	0
-    PASSA_T_ant	    dw	0
-    direccao	    db	3
+dados segment
+	num_aleat 		dw 	0
 
-    Centesimos	    dw 	0
-    FACTOR		    db	100
-    metade_FACTOR	db	?
-    resto		    db	0
+	pontos			dw	0
+    texto   		BYTE    'Pontos:', 0
+	texto_pontos	db	5	dup('0'), '$'
 
-    Erro_Open       db  'Erro ao tentar abrir o ficheiro$'
-    Erro_Ler_Msg    db  'Erro ao tentar ler do ficheiro$'
-    Erro_Close      db  'Erro ao tentar fechar o ficheiro$'
-    Fich         	db  'moldura.TXT', 0
-    HandleFich      dw  0
-    car_fich        db  ?
+	maca_x			db	0
+	maca_y			db	0
+	maca_tipo		db	0
 
-DADOS ENDS
+	rato_x			db	0
+	rato_y			db  0
+	rato_seg		dw 	0
 
-CODIGO	SEGMENT	para	public	'code'
-		ASSUME	CS:CODIGO, DS:DADOS
+	menu_begin 		db  'SNAKE - ISEC', 13, 10
+            		db  '1 - Start game', 13, 10
+            		db  '2 - Stats', 13, 10
+            		db  '3 - Exit game$'
 
-MAIN PROC
-    mov     ax, DADOS
+    posy  			db	10	; a linha pode ir de [1 .. 25]
+    posx  			db	40	; posx pode ir [1..80]
+    posya 			db	5	; posição anterior de y
+    posxa   		db	10	; posição anterior de x
+
+    passa_t			dw	0
+    passa_t_ant		dw	0
+    direccao		db	3
+
+    centesimos		dw 	0
+    factor			db	100
+    metade_factor	db	?
+    resto			db	0
+
+    erro_open       db	'Erro ao tentar abrir o ficheiro$'
+    erro_ler_msg    db  'Erro ao tentar ler do ficheiro$'
+    erro_close      db  'Erro ao tentar fechar o ficheiro$'
+    fich         	db  'moldura.txt',0
+    handlefich      dw  0
+    car_fich        db	?
+
+    
+
+dados ends
+
+codigo	segment	para	public	'code'
+		assume	cs:codigo, ds:dados
+
+main proc
+    mov     ax, dados
     mov     ds, ax
 
-START_MENU:
+	mov     ax, 0b800h
+    mov     es, ax
 
-    call CLEAR_SCREEN
-    call DISPLAY_MENU
+start_menu:
 
-    mov  ah, 7
-    int  21h
+    call 	clear_screen
+    call 	display_menu
+
+    mov  	ah, 7
+    int  	21h
 
     cmp     al, '1'
-    je      INICIO_JOGO
+    je      inicio_jogo
 
     cmp     al, '2'
-    je      STATS
+    je      stats
 
     cmp     al, '3'
-    je      FIM
+    je      fim
 
-    jmp     START_MENU
+    jmp     start_menu
 
-INICIO_JOGO:
+inicio_jogo:
 
-    call    CLEAR_SCREEN
-    call    Imp_Fich
+    call    clear_screen
+    call    imp_fich
     call    move_snake
 
-    jmp     START_MENU
+	mov		posx, 40
+	mov		posy, 10
+	mov 	factor, 100
+	mov		pontos, 0
 
-STATS:
+	mov		cx, 5
+	mov		si, 0
 
-    jmp     START_MENU
+reset_pontos:
 
-FIM:
+	mov		texto_pontos[si], '0'
+	inc		si
+	loop	reset_pontos
+
+	jmp     start_menu
+
+stats:
+
+    jmp     start_menu
+
+fim:
+
+	call	clear_screen
 
     mov     ax, 4c00h
     int     21h
 
 main	endp
 
-Imp_Fich	proc
-    mov     ah,3dh			; vamos abrir ficheiro para leitura
-    mov     al,0			; tipo de ficheiro
-    lea     dx,Fich			; nome do ficheiro
+imp_fich	proc
+    mov     ah, 3dh			; vamos abrir ficheiro para leitura
+    mov     al, 0			; tipo de ficheiro
+    lea     dx, fich		; nome do ficheiro
     int     21h			    ; abre para leitura
     jc      erro_abrir		; pode aconter erro a abrir o ficheiro
-    mov     HandleFich,ax	; ax devolve o Handle para o ficheiro
+    mov     handlefich, ax	; ax devolve o handle para o ficheiro
     jmp     ler_ciclo		; depois de abero vamos ler o ficheiro
 
 erro_abrir:
-        mov     ah,09h
-        lea     dx,Erro_Open
-        int     21h
-        jmp     sai
+    mov     ah, 09h
+    lea     dx, erro_open
+    int     21h
+    jmp     sai
 
 ler_ciclo:
     mov     ah, 3fh			; indica que vai ser lido um ficheiro
-    mov     bx, HandleFich	; bx deve conter o Handle do ficheiro previamente aberto
+    mov     bx, handlefich	; bx deve conter o handle do ficheiro previamente aberto
     mov     cx, 1			; numero de bytes a ler
     lea     dx, car_fich    ; vai ler para o local de memoria apontado por dx (car_fich)
     int     21h			    ; faz efectivamente a leitura
 	jc	    erro_ler		; se carry é porque aconteceu um erro
-	cmp	    ax, 0		    ;EOF?	verifica se já estamos no fim do ficheiro
-	je	    fecha_ficheiro	; se EOF fecha o ficheiro
+	cmp	    ax, 0		    ;eof?	verifica se já estamos no fim do ficheiro
+	je	    fecha_ficheiro	; se eof fecha o ficheiro
     mov     ah, 02h			; coloca o caracter no ecran
 	mov	    dl, car_fich	; este é o caracter a enviar para o ecran
 	int	    21h			    ; imprime no ecran
 	jmp	    ler_ciclo		; continua a ler o ficheiro
 
 erro_ler:
-    mov     ah,09h
-    lea     dx,Erro_Ler_Msg
+    mov     ah, 09h
+    lea     dx, erro_ler_msg
     int     21h
 
 fecha_ficheiro:				; vamos fechar o ficheiro
-    mov     ah,3eh
-    mov     bx,HandleFich
+    mov     ah, 3eh
+    mov     bx, handlefich
     int     21h
     jnc     sai
 
-    mov     ah,09h			; o ficheiro pode não fechar correctamente
-    lea     dx,Erro_Close
+    mov     ah, 09h			; o ficheiro pode não fechar correctamente
+    lea     dx, erro_close
     int     21h
 sai:
     ret
-Imp_Fich	endp
+imp_fich	endp
 
-LE_TECLA_0	PROC
-	;	call 	Trata_Horas
-	MOV	ah,0bh
-	INT 	21h
+le_tecla_0	proc
+
+	;	call 	trata_horas
+	mov		ah,	0bh
+	int 	21h
 	cmp 	al,0
-	jne	com_tecla
-	mov	ah, 0
-	mov	al, 0
-	jmp	SAI_TECLA
+	jne		com_tecla
+	mov		ah, 0
+	mov		al, 0
+	jmp		sai_tecla
+
 com_tecla:
-	MOV	   ah,08H
-	INT	   21H
-	MOV	   ah,0
-	CMP	   al,0
-	JNE	   SAI_TECLA
-	MOV	   ah, 08H
-	INT	   21H
-	MOV	   ah,1
-SAI_TECLA:
-	RET
-LE_TECLA_0	ENDP
 
-PASSA_TEMPO PROC
-	MOV   ah, 2CH         ; Buscar a hORAS
-	INT   21H
+	mov		ah,	08h
+	int		21h
+	mov		ah,	0
+	cmp		al,	0
+	jne		sai_tecla
+	mov		ah, 08h
+	int		21h
+	mov		ah,1
 
-	XOR   ax,ax
-	MOV   al, dl          ; centesimos de segundo para ax
-	mov   Centesimos, ax
+sai_tecla:
 
-	mov   bl, factor		; define velocidade da snake (100; 50; 33; 25; 20; 10)
-	div   bl
-	mov   resto, ah
-	mov   al, FACTOR
-	mov   ah, 0
-	mov   bl, 2
-	div   bl
-	mov   metade_FACTOR, al
-	mov   al, resto
-	mov   ah, 0
-	mov   bl, metade_FACTOR	; deve ficar sempre com metade do valor inicial
-	mov   ah, 0
-	cmp   ax, bx
-	jbe   Menor
-	mov   ax, 1
-	mov   PASSA_T, ax
-	jmp   fim_passa
+	ret
 
-Menor:
-	mov   ax,0
-	mov   PASSA_T, ax
+le_tecla_0	endp
+
+passa_tempo proc
+
+	mov		ah, 2ch         ; buscar a horas
+	int   	21h
+
+ 	xor   	ax, ax
+	mov   	al, dl          ; centesimos de segundo para ax
+	mov   	centesimos, ax
+
+	mov   	bl, factor		; define velocidade da snake (100; 50; 33; 25; 20; 10)
+	div   	bl
+	mov   	resto, ah
+	mov   	al, factor
+	mov   	ah, 0
+	mov   	bl, 2
+	div   	bl
+	mov   	metade_factor, al
+	mov   	al, resto
+	mov   	ah, 0
+	mov   	bl, metade_factor	; deve ficar sempre com metade do valor inicial
+	mov   	ah, 0
+	cmp   	ax, bx
+	jbe   	menor
+	mov   	ax, 1
+	mov   	passa_t, ax
+	jmp   	fim_passa
+
+menor:
+
+	mov   	ax, 0
+	mov   	passa_t, ax
 
 fim_passa:
- 		ret
-PASSA_TEMPO   ENDP
 
-move_snake PROC
-
-CICLO:
-	goto_xy	POSx,POSy	; Vai para nova possição
-	mov 	ah, 08h	    ; Guarda o Caracter que está na posição do Cursor
-	mov		bh,0		; numero da página
-	int		10h
-	cmp 	al, '#'	    ;  na posição do Cursor
+	cmp		rato_seg, 0
 	je		fim
 
-	goto_xy	POSxa,POSya		; Vai para a posição anterior do cursor
-	mov		ah, 02h
-	mov		dl, ' ' 	; Coloca ESPAÇO
-	int		21H
+	dec		rato_seg
 
-	inc		POSxa
-	goto_xy	POSxa,POSya
-	mov		ah, 02h
-	mov		dl, ' '		;  Coloca ESPAÇO
-	int		21H
-	dec 	POSxa
+fim:
 
-	goto_xy	POSx,POSy	; Vai para posição do cursor
+ 	ret
 
-IMPRIME:
-    mov		ah, 02h
-	mov		dl, '('	    ; Coloca AVATAR1
-	int		21H
+passa_tempo   endp
 
-	inc		POSx
-	goto_xy	POSx,POSy
-	mov		ah, 02h
-	mov		dl, ')'	    ; Coloca AVATAR2
-	int		21H
-	dec		POSx
+move_snake proc
 
-	goto_xy	POSx,POSy	; Vai para posição do cursor
+	call	imprime_maca
 
-	mov		al, POSx	; Guarda a posição do cursor
-	mov		POSxa, al
-	mov		al, POSy	; Guarda a posição do cursor
-	mov 	POSya, al
+ciclo:
 
-LER_SETA:
-	call 	LE_TECLA_0
+	goto_xy	posx,posy	; vai para nova possição
+	mov 	al, es:[di]	; guarda o caracter que está na posição do cursor
+	
+	cmp 	al, '#'		;  na posição do cursor
+	je		fim	
+
+maca:
+
+	cmp		al, 254
+	jne		rato
+
+	mov		ah, es:[di + 1]
+	cmp		ah, 00000100b
+	jne		ponto
+	inc		pontos
+
+ponto:
+
+	inc 	pontos
+
+	call 	imprime_maca
+
+rato:
+
+	cmp		al, 157
+	jne		atualiza
+
+	add		pontos, 3
+
+atualiza:
+
+	goto_xy	posxa,posya
+    mov		al, 32
+	mov		ah, 00000000b
+
+	mov     es:[di], al
+    mov     es:[di + 1], ah
+
+	cmp		rato_seg, 0
+	jne		imprime
+
+	goto_xy	rato_x, rato_y
+	mov		al, ' '
+	mov		es:[di], al
+
+	mov		al, 00000000b
+	mov		es:[di], al
+
+	call	imprime_rato
+
+imprime:
+
+	call	imprime_pontos
+
+	goto_xy	posx,posy	; vai para posição do cursor
+    mov		al, 178
+	mov		ah, 00000010b
+
+	mov     es:[di], al
+    mov     es:[di + 1], ah
+
+
+	goto_xy	posx,posy	; vai para posição do cursor
+
+	mov		al, posx	; guarda a posição do cursor
+	mov		posxa, al
+	mov		al, posy	; guarda a posição do cursor
+	mov 	posya, al
+
+ler_seta:
+
+	call 	le_tecla_0
 	cmp		ah, 1
-	je		ESTEND
-	cmp 	al, 27	; ESCAPE
-	je		FIM
+	je		estend
+	cmp 	al, 27	; escape
+	je		fim
 	cmp		al, '1'
-	jne		TESTE_2
-	mov		FACTOR, 100
+	jne		teste_2
+	mov		factor, 100
 
-TESTE_2:
-	CMP		al, '2'
-	JNE		TESTE_3
-	MOV		FACTOR, 50
+teste_2:
 
-TESTE_3:
-	CMP		al, '3'
-	JNE		TESTE_4
-	MOV		FACTOR, 25
+	cmp		al, '2'
+	jne		teste_3
+	mov		factor, 50
 
-TESTE_4:
-	CMP		al, '4'
-	JNE		TESTE_END
-	MOV		FACTOR, 10
+teste_3:
 
-TESTE_END:
-	call	PASSA_TEMPO
-	mov		ax, PASSA_T_ant
-	cmp		ax, PASSA_T
-	je		LER_SETA
-	mov		ax, PASSA_T
-	mov		PASSA_T_ant, ax
+	cmp		al, '3'
+	jne		teste_4
+	mov		factor, 25
+
+teste_4:
+
+	cmp		al, '4'
+	jne		teste_end
+	mov		factor, 10
+
+teste_end:
+
+	call	passa_tempo
+	mov		ax, passa_t_ant
+	cmp		ax, passa_t
+	je		ler_seta
+	mov		ax, passa_t
+	mov		passa_t_ant, ax
 
 verifica_0:
+
 	mov		al, direccao
 	cmp 	al, 0
 	jne		verifica_1
-	inc		POSx		;Direita
-	inc		POSx		;Direita
-	jmp		CICLO
+	inc		posx		;direita
+	jmp		ciclo
 
 verifica_1:
+
 	mov 	al, direccao
 	cmp		al, 1
 	jne		verifica_2
-	dec		POSy		;cima
-	jmp		CICLO
+	dec		posy		;cima
+	jmp		ciclo
 
 verifica_2:
+
     mov 	al, direccao
 	cmp		al, 2
 	jne		verifica_3
-	dec		POSx		;Esquerda
-	dec		POSx		;Esquerda
-	jmp		CICLO
+	dec		posx		;esquerda
+	jmp		ciclo
 
 verifica_3:
+
     mov 	al, direccao
 	cmp		al, 3
-	jne		CICLO
-	inc		POSy		;BAIXO
-	jmp		CICLO
+	jne		ciclo
+	inc		posy		;baixo
+	jmp		ciclo
 
-ESTEND:
+estend:
+
 	cmp 	al, 48h
-	jne		BAIXO
+	jne		baixo
 	mov		direccao, 1
-	jmp		CICLO
+	jmp		ciclo
 
-BAIXO:
+baixo:
+
 	cmp		al, 50h
-	jne		ESQUERDA
+	jne		esquerda
 	mov		direccao, 3
-	jmp		CICLO
+	jmp		ciclo
 
-ESQUERDA:
-	cmp		al, 4Bh
-	jne		DIREITA
+esquerda:
+
+	cmp		al, 4bh
+	jne		direita
 	mov		direccao, 2
-	jmp		CICLO
+	jmp		ciclo
 
-DIREITA:
-	cmp		al, 4Dh
-	jne		LER_SETA
+direita:
+
+	cmp		al, 4dh
+	jne		ler_seta
 	mov		direccao, 0
-	jmp		CICLO
+	jmp		ciclo
 
-FIM:
+fim:
+
 	ret
 
-move_snake ENDP
+move_snake endp
 
-CLEAR_SCREEN PROC
+clear_screen proc
     mov     ah, 0
     mov     al, 3
-    int     10H
+    int     10h
     ret
-CLEAR_SCREEN ENDP
+clear_screen endp
 
-DISPLAY_MENU PROC
-    mov		ah, 40h
-    lea		dx, menu1
-    mov     cx, 60
+display_menu proc
+    mov		ah, 9
+    lea		dx, menu_begin
     int		21h
     ret
-DISPLAY_MENU ENDP
+display_menu endp
 
-CODIGO ENDS
+imprime_maca proc
 
-END	MAIN
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 2
+	div		bl
+	mov		maca_tipo, ah
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 60
+	div		bl
+	mov		maca_x, ah
+	add		maca_x, 4
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 20
+	div		bl
+	mov		maca_y, ah
+	add		maca_y, 2
+
+	goto_xy	maca_x, maca_y
+	mov		al, 254
+	mov		es:[di], al
+
+maca1:
+
+	cmp		maca_tipo, 1
+	jne		maca2
+
+	mov		al, 00000010b
+	jmp		aplica
+
+maca2:
+
+	mov 	al, 00000100b
+
+aplica:	
+	mov		es:[di + 1], al
+
+	ret
+
+imprime_maca endp
+
+imprime_rato proc
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 20
+	div		bl
+
+	cmp		ah, 0
+	jne 	fim
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 60
+	div		bl
+	mov		rato_x, ah
+	add		rato_x, 4
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 20
+	div		bl
+	mov		rato_y, ah
+	add		rato_y, 2
+
+	mov 	rato_seg, 20000
+
+	goto_xy	rato_x, rato_y
+	mov		al, 157
+	mov		es:[di], al
+
+	mov		al, 00001000b
+	mov		es:[di + 1], al
+
+fim:
+	ret
+
+imprime_rato endp
+
+imprime_pontos proc
+ 	
+	mov     si, 0
+	mov		di, 0
+
+ciclo:
+    mov     al, texto[si]
+    cmp     al, 0
+    je      fim_ciclo
+
+    mov     ah, 00001000b   ;Nao pisca (0), branco (111), azul (0001)
+    mov     es:[di], al
+    mov     es:[di + 1], ah
+    
+    add     di, 2
+    inc     si
+    jmp     ciclo
+
+fim_ciclo:
+
+    mov     bx, 10
+    mov     si, 4
+    mov     ax, pontos
+
+ciclo_pontos:
+    mov     dx, 0
+    div     bx
+    add     dl, 48
+    mov     texto_pontos[si], dl
+    dec     si
+    
+    cmp     ax, 0
+    jne     ciclo_pontos
+
+	mov     si, 0
+
+imprime:
+
+    mov     al, texto_pontos[si]
+    cmp     al, '$'
+    je      fim
+
+    mov     ah, 00000001b   ;Nao pisca (0), branco (111), azul (0001)
+    mov     es:[di], al
+    mov     es:[di + 1], ah
+    
+    add     di, 2
+    inc     si
+    jmp     imprime
+
+fim:
+	ret
+
+imprime_pontos endp
+
+calc_aleat proc near
+
+	sub		sp, 2		; 
+	push	bp
+	mov		bp, sp
+	push	ax
+	push	cx
+	push	dx	
+	mov		ax, [bp + 4]
+	mov		[bp + 2], ax
+
+	mov		ah, 00h
+	int		1ah
+
+	add		dx, num_aleat	; vai buscar o aleat�rio anterior
+	add		cx, dx	
+	mov		ax, 65521
+	push	dx
+	mul		cx			
+	pop		dx			 
+	xchg	dl, dh
+	add		dx, 32749
+	add		dx, ax
+
+	mov		num_aleat, dx	; guarda o novo numero aleat�rio  
+
+	mov		[bp + 4], dx		; o aleat�rio � passado por pilha
+
+	pop		dx
+	pop		cx
+	pop		ax
+	pop		bp
+	ret
+calc_aleat endp
+
+codigo ends
+
+end	main
