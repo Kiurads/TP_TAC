@@ -39,12 +39,16 @@ dados segment
     posya 			db	5	; posição anterior de y
     posxa   		db	10	; posição anterior de x
 
+	tamanho			dw 	0
+	cauda_x			db	200	dup(0), '$'
+	cauda_y			db	200	dup(0), '$'
+
     passa_t			dw	0
     passa_t_ant		dw	0
     direccao		db	3
 
     centesimos		dw 	0
-    factor			db	100
+    factor			db	50
     metade_factor	db	?
     resto			db	0
 
@@ -96,8 +100,9 @@ inicio_jogo:
 
 	mov		posx, 40
 	mov		posy, 10
-	mov 	factor, 100
+	mov 	factor, 50
 	mov		pontos, 0
+	mov		tamanho, 0
 
 	mov		cx, 5
 	mov		si, 0
@@ -249,6 +254,8 @@ move_snake proc
 
 ciclo:
 
+	call 	limpa_tudo	
+
 	goto_xy	posx,posy	; vai para nova possição
 	mov 	al, es:[di]	; guarda o caracter que está na posição do cursor
 	
@@ -263,31 +270,47 @@ maca:
 	mov		ah, es:[di + 1]
 	cmp		ah, 00000100b
 	jne		ponto
+	
 	inc		pontos
 
 ponto:
+	
+	cmp		factor, 10
+	jbe		minimo_factor_maca
+
+	sub		factor, 1
+	jmp		muda_tamanho_maca
+
+minimo_factor_maca:
+
+	mov		factor, 10
+
+muda_tamanho_maca:
 
 	inc 	pontos
+	inc		tamanho
 
 	call 	imprime_maca
 
 rato:
 
-	cmp		al, 157
-	jne		atualiza
-
-	add		pontos, 3
-
-atualiza:
-
-	goto_xy	posxa,posya
-    mov		al, 32
-	mov		ah, 00000000b
-
-	mov     es:[di], al
-    mov     es:[di + 1], ah
-
 	cmp		rato_seg, 0
+	jne		verifica_rato
+
+	goto_xy	rato_x, rato_y
+	mov		al, ' '
+	mov		es:[di], al
+
+	mov		al, 00000000b
+	mov		es:[di + 1], al
+
+	jmp		atualiza
+
+verifica_rato:
+
+	mov		al, es:[di]
+
+	cmp		al, 157
 	jne		imprime
 
 	goto_xy	rato_x, rato_y
@@ -295,28 +318,66 @@ atualiza:
 	mov		es:[di], al
 
 	mov		al, 00000000b
-	mov		es:[di], al
+	mov		es:[di + 1], al
+
+	add		pontos, 3
+	
+	cmp		factor, 12
+	jbe		minimo_factor_rato
+
+	sub		factor, 3
+	jmp		muda_tamanho_rato
+
+minimo_factor_rato:
+
+	mov		factor, 10
+
+muda_tamanho_rato:
+
+	cmp		tamanho, 3
+	jbe		reset_tamanho
+
+	sub		tamanho, 3
+	jmp		atualiza
+
+reset_tamanho:
+
+	mov		tamanho, 0
+
+atualiza:
 
 	call	imprime_rato
 
 imprime:
 
+	call 	mexe_cauda
 	call	imprime_pontos
 
-	goto_xy	posx,posy	; vai para posição do cursor
-    mov		al, 178
-	mov		ah, 00000010b
+	mov     si, 0
 
-	mov     es:[di], al
+ciclo_imprime:
+
+    goto_xy cauda_x[si], cauda_y[si]
+
+	mov		al, 254
+    
+	cmp		si, 0
+	jne		continua
+
+    mov     al, 219
+
+continua:
+
+    mov     ah, 00001001b
+
+    mov     es:[di], al
     mov     es:[di + 1], ah
 
+    cmp     si, tamanho
+    je      ler_seta
 
-	goto_xy	posx,posy	; vai para posição do cursor
-
-	mov		al, posx	; guarda a posição do cursor
-	mov		posxa, al
-	mov		al, posy	; guarda a posição do cursor
-	mov 	posya, al
+    inc     si
+    jmp     ciclo_imprime
 
 ler_seta:
 
@@ -325,29 +386,8 @@ ler_seta:
 	je		estend
 	cmp 	al, 27	; escape
 	je		fim
-	cmp		al, '1'
-	jne		teste_2
-	mov		factor, 100
 
-teste_2:
-
-	cmp		al, '2'
-	jne		teste_3
-	mov		factor, 50
-
-teste_3:
-
-	cmp		al, '3'
-	jne		teste_4
-	mov		factor, 25
-
-teste_4:
-
-	cmp		al, '4'
-	jne		teste_end
-	mov		factor, 10
-
-teste_end:
+teste:
 
 	call	passa_tempo
 	mov		ax, passa_t_ant
@@ -362,6 +402,14 @@ verifica_0:
 	cmp 	al, 0
 	jne		verifica_1
 	inc		posx		;direita
+	
+
+	goto_xy	posx, posy
+	mov		al, es:[di + 1]
+
+    cmp		al, 00001001b
+	je		fim
+
 	jmp		ciclo
 
 verifica_1:
@@ -370,6 +418,14 @@ verifica_1:
 	cmp		al, 1
 	jne		verifica_2
 	dec		posy		;cima
+	
+
+	goto_xy	posx, posy
+	mov		al, es:[di + 1]
+
+    cmp		al, 00001001b
+	je		fim
+
 	jmp		ciclo
 
 verifica_2:
@@ -378,6 +434,14 @@ verifica_2:
 	cmp		al, 2
 	jne		verifica_3
 	dec		posx		;esquerda
+	
+
+	goto_xy	posx, posy
+	mov		al, es:[di + 1]
+
+    cmp		al, 00001001b
+	je		fim
+
 	jmp		ciclo
 
 verifica_3:
@@ -386,6 +450,13 @@ verifica_3:
 	cmp		al, 3
 	jne		ciclo
 	inc		posy		;baixo
+
+	goto_xy	posx, posy
+	mov		al, es:[di + 1]
+
+    cmp		al, 00001001b
+	je		fim
+
 	jmp		ciclo
 
 estend:
@@ -553,7 +624,7 @@ fim_ciclo:
 
     mov     bx, 10
     mov     si, 4
-    mov     ax, pontos
+	mov 	ax, pontos
 
 ciclo_pontos:
     mov     dx, 0
@@ -585,6 +656,88 @@ fim:
 	ret
 
 imprime_pontos endp
+
+mexe_cauda proc
+
+	mov		si, tamanho
+
+ciclo_cauda:
+
+	mov		al, cauda_x[si]
+	mov		cauda_x[si + 1], al
+
+	mov		al, cauda_y[si]
+	mov		cauda_y[si + 1], al
+
+	cmp		si, 0
+	je		fim_ciclo_cauda
+
+	dec 	si
+	jmp 	ciclo_cauda
+
+fim_ciclo_cauda:
+
+	mov		al, posx	; guarda a posição do cursor
+	mov		cauda_x[0], al
+	mov		al, posy	; guarda a posição do cursor
+	mov 	cauda_y[0], al
+
+    ret
+
+mexe_cauda endp
+
+limpa_tudo proc
+
+    mov     si, 0
+
+ciclo_limpa:
+
+    goto_xy cauda_x[si], cauda_y[si]
+
+    mov		al, 32
+	mov		ah, 00000000b
+
+	mov     es:[di], al
+    mov     es:[di + 1], ah
+
+	cmp		si, tamanho
+	je		fim_ciclo_limpa
+
+	inc  	si
+	jmp 	ciclo_limpa
+
+fim_ciclo_limpa:
+
+	ret
+
+limpa_tudo endp
+
+imprime_cobra proc
+
+    mov     si, 0
+    mov     al, 178
+    mov     ah, 00000010b
+
+ciclo_imprime:
+
+    goto_xy cauda_x[si], cauda_y[si]
+
+    mov     es:[di], al
+    mov     es:[di + 1], ah
+
+    mov     al, 220
+
+    cmp     si, tamanho
+    je      fim_ciclo_imprime
+
+    inc     si
+    jmp     ciclo_imprime
+
+fim_ciclo_imprime:
+
+    ret
+
+imprime_cobra endp
 
 calc_aleat proc near
 
