@@ -18,7 +18,9 @@ dados segment
 	num_aleat 		dw 	0
 
 	pontos			dw	0
-    texto   		BYTE    'Pontos:', 0
+	vidas			db 	3
+    texto1   		BYTE    'Pontos:', 0
+    texto2	 		BYTE    'Vidas:', 0
 	texto_pontos	db	5	dup('0'), '$'
 
 	maca_x			db	0
@@ -31,8 +33,13 @@ dados segment
 
 	menu_begin 		db  'SNAKE - ISEC', 13, 10
             		db  '1 - Start game', 13, 10
-            		db  '2 - Stats', 13, 10
+            		db  '2 - Game history', 13, 10
             		db  '3 - Exit game$'
+
+	menu_vel 		db  'SELECT SPEED', 13, 10
+            		db  '1 - Snail', 13, 10
+            		db  '2 - Hare', 13, 10
+            		db  '3 - Cheetah$'
 
     posy  			db	10	; a linha pode ir de [1 .. 25]
     posx  			db	40	; posx pode ir [1..80]
@@ -55,9 +62,13 @@ dados segment
     erro_open       db	'Erro ao tentar abrir o ficheiro$'
     erro_ler_msg    db  'Erro ao tentar ler do ficheiro$'
     erro_close      db  'Erro ao tentar fechar o ficheiro$'
-    fich         	db  'moldura.txt',0
+    fich         	db  'moldura.txt', 0
+	
+    fich_historico  db  'hist.txt',	0
     handlefich      dw  0
     car_fich        db	?
+
+	newline			db	13, 10
 
     
 
@@ -95,14 +106,62 @@ start_menu:
 inicio_jogo:
 
     call    clear_screen
+	call	display_vel
+
+	mov  	ah, 7
+    int  	21h
+
+	mov		factor, 50
+
+    cmp     al, '1'
+    je      jogo
+
+	mov		factor, 25
+
+    cmp     al, '2'
+    je      jogo
+
+	mov		factor, 10
+
+    cmp     al, '3'
+    je      jogo
+
+jogo:
+
+	call	clear_screen
+
     call    imp_fich
     call    move_snake
 
-	mov		posx, 40
-	mov		posy, 10
 	mov 	factor, 50
 	mov		pontos, 0
 	mov		tamanho, 0
+	mov		vidas, 3
+
+	lea 	dx,	fich_historico
+	mov 	al,	02h
+	mov 	ah,	3dh
+	int 	21h
+	
+	mov 	bx,	ax
+	mov 	ah, 42h
+	mov 	al, 2
+	mov 	cx, 0
+	mov 	dx, 0
+	int 	21h
+
+	mov 	cx,	5
+	lea 	dx,	texto_pontos
+	mov 	ah,	40h
+	int 	21h
+	
+	mov 	cx,	2
+	lea 	dx,	newline
+	mov 	ah,	40h
+	int 	21h
+
+	mov 	ah,	3eh
+	int 	21h
 
 	mov		cx, 5
 	mov		si, 0
@@ -116,6 +175,15 @@ reset_pontos:
 	jmp     start_menu
 
 stats:
+
+	call	clear_screen
+
+	call	mostra_historico
+
+	mov		ah, 7
+	int		21h
+
+	call	clear_screen
 
     jmp     start_menu
 
@@ -174,6 +242,54 @@ fecha_ficheiro:				; vamos fechar o ficheiro
 sai:
     ret
 imp_fich	endp
+
+mostra_historico	proc
+    mov     ah, 3dh			
+    mov     al, 0
+    lea     dx, fich_historico
+    int     21h	
+    jc      erro_abrir
+    mov     handlefich, ax
+    jmp     ler_ciclo
+
+erro_abrir:
+    mov     ah, 09h
+    lea     dx, erro_open
+    int     21h
+    jmp     sai
+
+ler_ciclo:
+    mov     ah, 3fh			; indica que vai ser lido um ficheiro
+    mov     bx, handlefich	; bx deve conter o handle do ficheiro previamente aberto
+    mov     cx, 1			; numero de bytes a ler
+    lea     dx, car_fich    ; vai ler para o local de memoria apontado por dx (car_fich)
+    int     21h			    ; faz efectivamente a leitura
+	jc	    erro_ler		; se carry é porque aconteceu um erro
+	cmp	    ax, 0		    ;eof?	verifica se já estamos no fim do ficheiro
+	je	    fecha_ficheiro	; se eof fecha o ficheiro
+    mov     ah, 02h			; coloca o caracter no ecran
+	mov	    dl, car_fich	; este é o caracter a enviar para o ecran
+	int	    21h			    ; imprime no ecran
+	jmp	    ler_ciclo		; continua a ler o ficheiro
+
+erro_ler:
+    mov     ah, 09h
+    lea     dx, erro_ler_msg
+    int     21h
+
+fecha_ficheiro:				; vamos fechar o ficheiro
+    mov     ah, 3eh
+    mov     bx, handlefich
+    int     21h
+    jnc     sai
+
+    mov     ah, 09h			; o ficheiro pode não fechar correctamente
+    lea     dx, erro_close
+    int     21h
+sai:
+    ret
+
+mostra_historico	endp
 
 le_tecla_0	proc
 
@@ -252,6 +368,31 @@ move_snake proc
 
 	call	imprime_maca
 
+posicao:
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 60
+	div		bl
+	mov		posx, ah
+	add		posx, 4
+
+	call	calc_aleat
+	pop		ax
+	xor		ah, ah
+
+	mov		bl, 20
+	div		bl
+	mov		posy, ah
+	add		posy, 2
+
+	goto_xy	posx, posy
+	mov		al, es:[di]
+	cmp		al, '#'
+	je		posicao
+
 ciclo:
 
 	call 	limpa_tudo	
@@ -260,7 +401,28 @@ ciclo:
 	mov 	al, es:[di]	; guarda o caracter que está na posição do cursor
 	
 	cmp 	al, '#'		;  na posição do cursor
-	je		fim	
+	jne		perde_cauda	
+
+	cmp		vidas, 0
+	je		fim
+
+	dec		vidas
+	mov		tamanho, 0
+	jmp		posicao
+
+perde_cauda:
+
+	mov		ah, es:[di + 1]
+
+    cmp		ah, 00001001b
+	jne		maca
+
+	cmp		vidas, 0
+	je		fim
+
+	dec		vidas
+	mov		tamanho, 0
+	jmp		posicao
 
 maca:
 
@@ -272,6 +434,7 @@ maca:
 	jne		ponto
 	
 	inc		pontos
+	inc		tamanho
 
 ponto:
 	
@@ -334,10 +497,10 @@ minimo_factor_rato:
 
 muda_tamanho_rato:
 
-	cmp		tamanho, 3
+	cmp		tamanho, 5
 	jbe		reset_tamanho
 
-	sub		tamanho, 3
+	sub		tamanho, 5
 	jmp		atualiza
 
 reset_tamanho:
@@ -351,7 +514,7 @@ atualiza:
 imprime:
 
 	call 	mexe_cauda
-	call	imprime_pontos
+	call	imprime_pontos_vidas
 
 	mov     si, 0
 
@@ -402,14 +565,12 @@ verifica_0:
 	cmp 	al, 0
 	jne		verifica_1
 	inc		posx		;direita
+
+	cmp		posx, 66
+	jne		ciclo
 	
-
-	goto_xy	posx, posy
-	mov		al, es:[di + 1]
-
-    cmp		al, 00001001b
-	je		fim
-
+	mov		posx, 4
+	
 	jmp		ciclo
 
 verifica_1:
@@ -418,14 +579,12 @@ verifica_1:
 	cmp		al, 1
 	jne		verifica_2
 	dec		posy		;cima
+
+	cmp		posy, 1
+	jne		ciclo
 	
-
-	goto_xy	posx, posy
-	mov		al, es:[di + 1]
-
-    cmp		al, 00001001b
-	je		fim
-
+	mov		posy, 21
+	
 	jmp		ciclo
 
 verifica_2:
@@ -434,13 +593,11 @@ verifica_2:
 	cmp		al, 2
 	jne		verifica_3
 	dec		posx		;esquerda
+
+	cmp		posx, 3
+	jne		ciclo
 	
-
-	goto_xy	posx, posy
-	mov		al, es:[di + 1]
-
-    cmp		al, 00001001b
-	je		fim
+	mov		posx, 65
 
 	jmp		ciclo
 
@@ -451,12 +608,11 @@ verifica_3:
 	jne		ciclo
 	inc		posy		;baixo
 
-	goto_xy	posx, posy
-	mov		al, es:[di + 1]
-
-    cmp		al, 00001001b
-	je		fim
-
+	cmp		posy, 22
+	jne		ciclo
+	
+	mov		posy, 2
+	
 	jmp		ciclo
 
 estend:
@@ -507,6 +663,13 @@ display_menu proc
     ret
 display_menu endp
 
+display_vel proc
+    mov		ah, 9
+    lea		dx, menu_vel
+    int		21h
+    ret
+display_vel endp
+
 imprime_maca proc
 
 	call	calc_aleat
@@ -516,6 +679,8 @@ imprime_maca proc
 	mov		bl, 2
 	div		bl
 	mov		maca_tipo, ah
+
+posicao:
 
 	call	calc_aleat
 	pop		ax
@@ -536,6 +701,9 @@ imprime_maca proc
 	add		maca_y, 2
 
 	goto_xy	maca_x, maca_y
+	mov		al, es:[di]
+	cmp		al, '#'
+	je		posicao
 	mov		al, 254
 	mov		es:[di], al
 
@@ -570,6 +738,8 @@ imprime_rato proc
 	cmp		ah, 0
 	jne 	fim
 
+posicao:
+
 	call	calc_aleat
 	pop		ax
 	xor		ah, ah
@@ -591,6 +761,9 @@ imprime_rato proc
 	mov 	rato_seg, 20000
 
 	goto_xy	rato_x, rato_y
+	mov		al, es:[di]
+	cmp		al, '#'
+	je		posicao
 	mov		al, 157
 	mov		es:[di], al
 
@@ -602,17 +775,17 @@ fim:
 
 imprime_rato endp
 
-imprime_pontos proc
+imprime_pontos_vidas proc
  	
 	mov     si, 0
 	mov		di, 0
 
 ciclo:
-    mov     al, texto[si]
+    mov     al, texto1[si]
     cmp     al, 0
     je      fim_ciclo
 
-    mov     ah, 00001000b   ;Nao pisca (0), branco (111), azul (0001)
+    mov     ah, 00001000b
     mov     es:[di], al
     mov     es:[di + 1], ah
     
@@ -642,7 +815,7 @@ imprime:
 
     mov     al, texto_pontos[si]
     cmp     al, '$'
-    je      fim
+    je      trata_vidas
 
     mov     ah, 00000001b   ;Nao pisca (0), branco (111), azul (0001)
     mov     es:[di], al
@@ -652,10 +825,46 @@ imprime:
     inc     si
     jmp     imprime
 
+trata_vidas:
+
+	mov		si, 0
+	add		di, 4
+
+ciclo_vidas:
+
+    mov     al, texto2[si]
+    cmp     al, 0
+    je      fim_ciclo_vidas
+
+    mov     ah, 00001000b
+    mov     es:[di], al
+    mov     es:[di + 1], ah
+    
+    add     di, 2
+    inc     si
+    jmp     ciclo_vidas
+
+fim_ciclo_vidas:
+	
+	mov		ah, 00000001b
+
+	cmp		vidas, 0
+	jne		continua
+
+	mov		ah, 10000001b
+
+continua:
+
+	mov		al, vidas
+	add		al, 48
+
+	mov		es:[di], al
+	mov		es:[di + 1], ah
+
 fim:
 	ret
 
-imprime_pontos endp
+imprime_pontos_vidas endp
 
 mexe_cauda proc
 
@@ -777,3 +986,4 @@ calc_aleat endp
 codigo ends
 
 end	main
+
