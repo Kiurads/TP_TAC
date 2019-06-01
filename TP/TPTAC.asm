@@ -395,13 +395,13 @@ posicao:
 
 ciclo:
 
-	call 	limpa_tudo	
-
-	goto_xy	posx,posy	; vai para nova possição
+	goto_xy	posx,posy	; vai para nova posição
 	mov 	al, es:[di]	; guarda o caracter que está na posição do cursor
 	
 	cmp 	al, '#'		;  na posição do cursor
 	jne		perde_cauda	
+	
+	call 	limpa_tudo
 
 	cmp		vidas, 0
 	je		fim
@@ -414,8 +414,13 @@ perde_cauda:
 
 	mov		ah, es:[di + 1]
 
+	cmp		al, 254
+	jne		maca
+
     cmp		ah, 00001001b
 	jne		maca
+
+	call 	limpa_tudo
 
 	cmp		vidas, 0
 	je		fim
@@ -425,6 +430,11 @@ perde_cauda:
 	jmp		posicao
 
 maca:
+
+	call 	limpa_tudo
+
+	goto_xy	posx,posy	; vai para nova posição
+	mov 	al, es:[di]	; guarda o caracter que está na posição do cursor
 
 	cmp		al, 254
 	jne		rato
